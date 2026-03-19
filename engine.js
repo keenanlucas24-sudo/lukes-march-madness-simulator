@@ -27,6 +27,13 @@
  * - Flags upsets with Cinderella DNA analysis
  */
 
+/** Helper: form possessive without doubling apostrophe-s ("St. John's" stays "St. John's") */
+function possessive(name) {
+  if (name.endsWith("'s") || name.endsWith("\u2019s")) return name; // already looks possessive
+  if (name.endsWith("s")) return `${name}'`;
+  return `${name}'s`;
+}
+
 class SimulationEngine {
   constructor() {
     this.results = null;
@@ -173,6 +180,14 @@ class SimulationEngine {
     // Build narrative
     const narrative = this.buildNarrative(teamA, teamB, factors, aWins, Math.abs(finalMargin), isUpset, round);
 
+    // Generate realistic scores — ensure winner always has the higher score
+    const absMargin = Math.abs(finalMargin);
+    const baseScore = 65 + Math.round(Math.random() * 12);
+    let wScore = baseScore + Math.round(absMargin / 2) + Math.round(Math.random() * 4);
+    let lScore = baseScore - Math.round(absMargin / 2) + Math.round(Math.random() * 4);
+    // Safety: if rounding flipped them, force at least a 1-point win
+    if (wScore <= lScore) wScore = lScore + 1;
+
     return {
       winner,
       loser,
@@ -180,8 +195,8 @@ class SimulationEngine {
       narrative,
       isUpset,
       margin: Math.abs(finalMargin),
-      winnerScore: Math.round(70 + (aWins ? finalMargin : -finalMargin) / 2 + Math.random() * 8),
-      loserScore: Math.round(70 - Math.abs(finalMargin) / 2 + Math.random() * 8),
+      winnerScore: wScore,
+      loserScore: lScore,
     };
   }
 
@@ -222,9 +237,9 @@ class SimulationEngine {
       // Efficiency narratives
       if (dominant.key === 'efficiency') {
         if (margin > 12) {
-          narrativeParts.push(`${winner.name}'s elite two-way efficiency overwhelms ${loser.name}.`);
+          narrativeParts.push(`${possessive(winner.name)} elite two-way efficiency overwhelms ${loser.name}.`);
         } else {
-          narrativeParts.push(`${winner.name}'s superior efficiency creates separation.`);
+          narrativeParts.push(`${possessive(winner.name)} superior efficiency creates separation.`);
         }
       }
       // Tempo narratives
@@ -256,9 +271,9 @@ class SimulationEngine {
       // Experience narratives
       else if (dominant.key === 'experience') {
         if (loser.toureyExp === 0) {
-          narrativeParts.push(`Bright lights effect: ${loser.name}'s inexperience shows under tournament pressure.`);
+          narrativeParts.push(`Bright lights effect: ${possessive(loser.name)} inexperience shows under tournament pressure.`);
         } else {
-          narrativeParts.push(`${winner.name}'s veteran roster stays composed when it matters most.`);
+          narrativeParts.push(`${possessive(winner.name)} veteran roster stays composed when it matters most.`);
         }
       }
       // Momentum narratives
@@ -268,18 +283,18 @@ class SimulationEngine {
       // Depth narratives
       else if (dominant.key === 'depth') {
         if (round >= 2) {
-          narrativeParts.push(`Fatigue factor: ${winner.name}'s deep bench stays fresh while ${loser.name} fades in the ${round >= 3 ? 'late rounds' : 'second weekend'}.`);
+          narrativeParts.push(`Fatigue factor: ${possessive(winner.name)} deep bench stays fresh while ${loser.name} fades in the ${round >= 3 ? 'late rounds' : 'second weekend'}.`);
         } else {
-          narrativeParts.push(`${winner.name}'s bench depth provides crucial energy in a physical game.`);
+          narrativeParts.push(`${possessive(winner.name)} bench depth provides crucial energy in a physical game.`);
         }
       }
       // Coaching narratives
       else if (dominant.key === 'coaching') {
         const wCoach = winner.coachRating || 2.5;
         if (wCoach >= 4.5) {
-          narrativeParts.push(`Elite coaching: ${winner.coachNotes ? winner.coachNotes.split('—')[0].trim() : winner.name + "'s coach"} makes the key adjustments.`);
+          narrativeParts.push(`Elite coaching: ${winner.coachNotes ? winner.coachNotes.split('—')[0].trim() : possessive(winner.name) + " coach"} makes the key adjustments.`);
         } else {
-          narrativeParts.push(`${winner.name}'s coaching staff outprepares ${loser.name} with a superior game plan.`);
+          narrativeParts.push(`${possessive(winner.name)} coaching staff outprepares ${loser.name} with a superior game plan.`);
         }
       }
       // Injury narratives
@@ -287,12 +302,12 @@ class SimulationEngine {
         if (loser.injuryImpact && loser.injuryImpact < -0.2) {
           narrativeParts.push(`Missing key players proves fatal: ${loser.injuryNotes || loser.name + ' is shorthanded'}.`);
         } else {
-          narrativeParts.push(`${winner.name}'s health advantage is the difference in a tight game.`);
+          narrativeParts.push(`${possessive(winner.name)} health advantage is the difference in a tight game.`);
         }
       }
       // Conference narratives
       else if (dominant.key === 'conference') {
-        narrativeParts.push(`${winner.name}'s battle-tested conference schedule pays off — prepared for this level of competition.`);
+        narrativeParts.push(`${possessive(winner.name)} battle-tested conference schedule pays off — prepared for this level of competition.`);
       }
 
       // Add secondary factor if significant
