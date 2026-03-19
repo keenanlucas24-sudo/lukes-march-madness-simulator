@@ -1,5 +1,9 @@
 /**
- * March Madness Monte Carlo Engine v3.0
+ * March Madness Simulation Engine v4.0
+ * 
+ * DUAL-MODE ENGINE:
+ *   - Deterministic: Pure analytical pick (no noise) for the main bracket
+ *   - Monte Carlo: 10K stochastic sims for the probability table
  * 
  * 11-FACTOR GAME MODEL with narrative generation:
  * 
@@ -22,7 +26,7 @@
  * - Champion DNA filter: teams matching historical champion profile get slight boost
  * 
  * NARRATIVE ENGINE:
- * - Each simulated game generates a narrative explaining WHY the winner won
+ * - Each game generates a narrative explaining WHY the winner won
  * - Identifies the dominant factor(s) that swung the game
  * - Flags upsets with Cinderella DNA analysis
  */
@@ -40,7 +44,126 @@ class SimulationEngine {
   }
 
   /**
-   * Simulate a single game with full factor tracking and narrative.
+   * Deterministic analytical pick: all 11 factors, zero noise.
+   * Uses expected values instead of random samples.
+   * Returns { winner, loser, factors, narrative, isUpset, margin, winnerScore, loserScore, winProb }
+   */
+  analyzeGame(teamA, teamB, round = 0) {
+    const factors = {};
+    let marginA = 0;
+
+    // 1. BASE EFFICIENCY
+    const d1Avg = 105.0;
+    const teamA_expectedOE = (teamA.adjOE * teamB.adjDE) / d1Avg;
+    const teamB_expectedOE = (teamB.adjOE * teamA.adjDE) / d1Avg;
+    let rawMargin = teamA_expectedOE - teamB_expectedOE;
+    const tournamentRegression = 0.55;
+    let effMargin = rawMargin * tournamentRegression;
+    const seedGap = Math.abs(teamA.seed - teamB.seed);
+    if (seedGap >= 4 && seedGap <= 9) effMargin *= 0.88;
+    factors.efficiency = effMargin;
+    marginA += effMargin;
+
+    // 2. TEMPO MISMATCH
+    const gameTempo = (teamA.tempo + teamB.tempo) / 2;
+    const tempoDiffA = Math.abs(teamA.tempo - gameTempo);
+    const tempoDiffB = Math.abs(teamB.tempo - gameTempo);
+    const tempoEffect = (tempoDiffB - tempoDiffA) * 0.12;
+    factors.tempo = tempoEffect;
+    marginA += tempoEffect;
+
+    // 3. THREE-POINT (expected value — no variance)
+    // At expected shooting, both teams shoot their season average → net impact = 0
+    // But we still factor in rate: high-volume 3PT teams have more upside baked into efficiency
+    const threeEffect = 0;
+    factors.threePoint = threeEffect;
+    factors.teamA_3ptPctGame = teamA.threePtPct;
+    factors.teamB_3ptPctGame = teamB.threePtPct;
+
+    // 4. FREE THROW (expected value)
+    const expectedFT = 22; // avg FT attempts
+    const ftEffect = (teamA.ftPct - teamB.ftPct) * expectedFT * 0.10;
+    factors.freeThrow = ftEffect;
+    marginA += ftEffect;
+
+    // 5. EXPERIENCE & COMPOSURE
+    const expA = teamA.experience * 0.5 + teamA.toureyExp * 0.35;
+    const expB = teamB.experience * 0.5 + teamB.toureyExp * 0.35;
+    let composureEffect = (expA - expB) * 0.25;
+    if (teamA.toureyExp === 0) composureEffect -= 1.2;
+    if (teamB.toureyExp === 0) composureEffect += 1.2;
+    factors.experience = composureEffect;
+    marginA += composureEffect;
+
+    // 6. MOMENTUM
+    const momentumEffect = (teamA.hotStreak - teamB.hotStreak) * 0.5;
+    factors.momentum = momentumEffect;
+    marginA += momentumEffect;
+
+    // 7. DEPTH & FATIGUE
+    const fatigueMultiplier = 1.0 + round * 0.25;
+    const depthEffect = (teamA.benchDepth * fatigueMultiplier - teamB.benchDepth * fatigueMultiplier) * 1.5;
+    factors.depth = depthEffect;
+    marginA += depthEffect;
+
+    // 8. COACHING
+    const coachA = teamA.coachRating || 2.5;
+    const coachB = teamB.coachRating || 2.5;
+    const coachRoundMultiplier = 1.0 + round * 0.15;
+    const coachEffect = (coachA - coachB) * 0.35 * coachRoundMultiplier;
+    factors.coaching = coachEffect;
+    marginA += coachEffect;
+
+    // 9. INJURY
+    const injuryEffect = ((teamA.injuryImpact || 0) - (teamB.injuryImpact || 0)) * 4.0;
+    factors.injuries = injuryEffect;
+    marginA += injuryEffect;
+
+    // 10. CONFERENCE STRENGTH
+    const confEffect = ((teamA.confStrength || 0) - (teamB.confStrength || 0)) * 1.2;
+    factors.conference = confEffect;
+    marginA += confEffect;
+
+    // 11. VEGAS CALIBRATION
+    if (round === 0 && teamA.vegasSpread != null && teamB.vegasSpread != null) {
+      const vegasMarginA = -teamA.vegasSpread;
+      const vegasBlend = (vegasMarginA * 0.55 - marginA) * 0.15;
+      factors.vegasCalibration = vegasBlend;
+      marginA += vegasBlend;
+    } else {
+      factors.vegasCalibration = 0;
+    }
+
+    // Convert margin to win probability (logistic)
+    const winProbA = 1 / (1 + Math.pow(10, -marginA / 11));
+
+    // Deterministic pick: team with higher model margin wins
+    const aWins = marginA > 0;
+    const winner = aWins ? teamA : teamB;
+    const loser = aWins ? teamB : teamA;
+    const isUpset = winner.seed > loser.seed;
+    const absMargin = Math.abs(marginA);
+
+    // Narrative
+    const narrative = this.buildNarrative(teamA, teamB, factors, aWins, absMargin, isUpset, round);
+
+    // Scores
+    const baseScore = 72;
+    let wScore = baseScore + Math.round(absMargin / 2);
+    let lScore = baseScore - Math.round(absMargin / 2);
+    if (wScore <= lScore) wScore = lScore + 1;
+
+    return {
+      winner, loser, factors, narrative, isUpset,
+      margin: absMargin,
+      winnerScore: wScore,
+      loserScore: lScore,
+      winProb: aWins ? winProbA : (1 - winProbA),
+    };
+  }
+
+  /**
+   * Simulate a single game with full factor tracking and narrative (stochastic/Monte Carlo mode).
    * Returns { winner, loser, factors, narrative, isUpset, margin }
    */
   simulateGame(teamA, teamB, round = 0) {
@@ -348,20 +471,70 @@ class SimulationEngine {
   }
 
   /**
-   * Simulate a full region (4 rounds: R64 → Elite 8)
-   * Returns full game-by-game results with narratives
+   * Deterministic: analyze a full region (4 rounds: R64 → Elite 8)
+   */
+  analyzeRegionBracket(regionTeams) {
+    const rounds = [];
+
+    let games = [];
+    for (let i = 0; i < regionTeams.length; i += 2) {
+      games.push(this.analyzeGame(regionTeams[i], regionTeams[i + 1], 0));
+    }
+    rounds.push(games);
+
+    games = [];
+    const r64Winners = rounds[0].map(g => g.winner);
+    for (let i = 0; i < r64Winners.length; i += 2) {
+      games.push(this.analyzeGame(r64Winners[i], r64Winners[i + 1], 1));
+    }
+    rounds.push(games);
+
+    games = [];
+    const r32Winners = rounds[1].map(g => g.winner);
+    for (let i = 0; i < r32Winners.length; i += 2) {
+      games.push(this.analyzeGame(r32Winners[i], r32Winners[i + 1], 2));
+    }
+    rounds.push(games);
+
+    const s16Winners = rounds[2].map(g => g.winner);
+    const e8Game = this.analyzeGame(s16Winners[0], s16Winners[1], 3);
+    rounds.push([e8Game]);
+
+    return { rounds, regionWinner: e8Game.winner };
+  }
+
+  /**
+   * Deterministic full bracket: the model's best analytical prediction.
+   */
+  analyzeBracket() {
+    const allRegions = ['east', 'west', 'midwest', 'south'];
+    const regionResults = {};
+    allRegions.forEach(rk => {
+      regionResults[rk] = this.analyzeRegionBracket(REGIONS[rk].teams);
+    });
+
+    const semi1 = this.analyzeGame(regionResults.east.regionWinner, regionResults.south.regionWinner, 4);
+    const semi2 = this.analyzeGame(regionResults.west.regionWinner, regionResults.midwest.regionWinner, 4);
+    const championship = this.analyzeGame(semi1.winner, semi2.winner, 5);
+
+    return {
+      regions: regionResults,
+      finalFour: { semi1, semi2, championship, champion: championship.winner },
+    };
+  }
+
+  /**
+   * Stochastic: simulate a full region (4 rounds: R64 → Elite 8) with noise
    */
   simulateRegionBracket(regionTeams) {
     const rounds = [];
 
-    // R64 (round 0)
     let games = [];
     for (let i = 0; i < regionTeams.length; i += 2) {
       games.push(this.simulateGame(regionTeams[i], regionTeams[i + 1], 0));
     }
     rounds.push(games);
 
-    // R32 (round 1)
     games = [];
     const r64Winners = rounds[0].map(g => g.winner);
     for (let i = 0; i < r64Winners.length; i += 2) {
@@ -369,7 +542,6 @@ class SimulationEngine {
     }
     rounds.push(games);
 
-    // S16 (round 2)
     games = [];
     const r32Winners = rounds[1].map(g => g.winner);
     for (let i = 0; i < r32Winners.length; i += 2) {
@@ -377,50 +549,30 @@ class SimulationEngine {
     }
     rounds.push(games);
 
-    // E8 (round 3)
     const s16Winners = rounds[2].map(g => g.winner);
     const e8Game = this.simulateGame(s16Winners[0], s16Winners[1], 3);
     rounds.push([e8Game]);
 
-    return {
-      rounds,
-      regionWinner: e8Game.winner,
-    };
+    return { rounds, regionWinner: e8Game.winner };
   }
 
   /**
-   * Run a SINGLE bracket simulation — picks winners, advances them, generates narratives.
-   * This is the v3 core: one bracket with actual picks and explanations.
+   * Stochastic full bracket simulation (used by Monte Carlo aggregate)
    */
   simulateBracket() {
     const allRegions = ['east', 'west', 'midwest', 'south'];
     const regionResults = {};
-
-    allRegions.forEach(regionKey => {
-      regionResults[regionKey] = this.simulateRegionBracket(REGIONS[regionKey].teams);
+    allRegions.forEach(rk => {
+      regionResults[rk] = this.simulateRegionBracket(REGIONS[rk].teams);
     });
 
-    // Final Four (round 4)
-    const semi1 = this.simulateGame(
-      regionResults.east.regionWinner,
-      regionResults.south.regionWinner, 4
-    );
-    const semi2 = this.simulateGame(
-      regionResults.west.regionWinner,
-      regionResults.midwest.regionWinner, 4
-    );
-
-    // Championship (round 5)
+    const semi1 = this.simulateGame(regionResults.east.regionWinner, regionResults.south.regionWinner, 4);
+    const semi2 = this.simulateGame(regionResults.west.regionWinner, regionResults.midwest.regionWinner, 4);
     const championship = this.simulateGame(semi1.winner, semi2.winner, 5);
 
     return {
       regions: regionResults,
-      finalFour: {
-        semi1,
-        semi2,
-        championship,
-        champion: championship.winner,
-      },
+      finalFour: { semi1, semi2, championship, champion: championship.winner },
     };
   }
 

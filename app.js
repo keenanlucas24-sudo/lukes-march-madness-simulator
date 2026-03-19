@@ -1,13 +1,11 @@
 /**
- * Application Controller v3.0
+ * Application Controller v4.0
  * 
- * MAJOR CHANGES from v2:
- * - Single bracket simulation: picks actual winners, advances them through rounds
- * - Game narratives: every game has an explanation of WHY the winner won
- * - Matchup detail panels: click any game to see all 11 factors
- * - Re-simulate button: generates a new bracket each click
- * - Aggregate probability table: secondary view from Monte Carlo (10K sims)
- * - Tab system: Bracket | Probabilities | Methodology
+ * ROUND-BY-ROUND BRACKET REVEAL:
+ * - Deterministic bracket computed up front, revealed one round at a time
+ * - "Advance" button progresses through: R64 → R32 → S16 → E8 → F4 → Championship
+ * - Champion banner only shown after Championship is revealed
+ * - Probabilities tab still uses Monte Carlo (10K sims) as statistical reference
  */
 
 (function () {
@@ -34,12 +32,17 @@
     });
   }
 
+  // ===== Constants =====
+  const ROUND_LABELS = ['Round of 64', 'Round of 32', 'Sweet 16', 'Elite 8', 'Final Four', 'Championship'];
+  const ROUND_SHORT  = ['R64', 'R32', 'Sweet 16', 'Elite 8', 'Final Four', 'Title'];
+  const ALL_REGIONS = ['east', 'west', 'midwest', 'south'];
+
   // ===== State =====
-  let currentBracket = null;     // Single bracket sim result
+  let currentBracket = null;     // Full deterministic bracket (computed up front)
+  let revealedRound = -1;        // -1 = not started, 0 = R64 shown, ... 5 = Championship shown
   let aggregateResults = null;   // Monte Carlo aggregate
-  let activeView = 'bracket';    // 'bracket' | 'probabilities' | 'methodology'
-  let activeRegion = 'east';
-  let detailGame = null;         // Currently viewed matchup detail
+  let activeView = 'bracket';
+  let detailGame = null;
 
   // ===== DOM =====
   const simBtn = document.getElementById('simBtn');
@@ -50,7 +53,6 @@
   const bracketView = document.getElementById('bracketView');
   const probView = document.getElementById('probView');
   const methodView = document.getElementById('methodView');
-  const regionTabs = document.querySelectorAll('.region-tab');
   const progressArea = document.getElementById('progressArea');
   const progressFill = document.getElementById('progressFill');
   const progressText = document.getElementById('progressText');
@@ -62,9 +64,8 @@
   const championDetails = document.getElementById('championDetails');
   const championPath = document.getElementById('championPath');
   const upsetCounter = document.getElementById('upsetCounter');
-  const bracketNumber = document.getElementById('bracketNumber');
-
-  let simCount = 0;
+  const advanceBtn = document.getElementById('advanceBtn');
+  const roundIndicator = document.getElementById('roundIndicator');
 
   // ===== View Tabs =====
   viewTabs.forEach(tab => {
@@ -77,37 +78,71 @@
       probView.classList.toggle('hidden', activeView !== 'probabilities');
       methodView.classList.toggle('hidden', activeView !== 'methodology');
 
-      // Run Monte Carlo on first switch to probabilities tab
       if (activeView === 'probabilities' && !aggregateResults) {
         runAggregate();
       }
     });
   });
 
-  // ===== Region Tabs =====
-  regionTabs.forEach(tab => {
-    tab.addEventListener('click', () => {
-      regionTabs.forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
-      activeRegion = tab.dataset.region;
-      if (currentBracket) renderBracket();
-    });
-  });
-
-  // ===== Simulate Button =====
+  // ===== Generate Bracket Button =====
   simBtn.addEventListener('click', () => {
-    simCount++;
-    currentBracket = engine.simulateBracket();
-    bracketNumber.textContent = `#${simCount}`;
-    renderChampionBanner();
-    renderBracket();
-    championBanner.classList.remove('hidden');
+    // Compute full bracket deterministically
+    currentBracket = engine.analyzeBracket();
+    revealedRound = -1;
+
+    // Hide champion banner
+    championBanner.classList.add('hidden');
+
+    // Show bracket area
     bracketArea.classList.remove('hidden');
 
-    // Subtle animation
+    // Reveal R64
+    advanceRound();
+
     simBtn.classList.add('pulse');
     setTimeout(() => simBtn.classList.remove('pulse'), 300);
   });
+
+  // ===== Advance Round =====
+  function advanceRound() {
+    if (!currentBracket) return;
+    if (revealedRound >= 5) return; // already fully revealed
+
+    revealedRound++;
+    renderBracket();
+    updateRoundControls();
+
+    // Scroll bracket area into view
+    bracketArea.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  if (advanceBtn) {
+    advanceBtn.addEventListener('click', advanceRound);
+  }
+
+  function updateRoundControls() {
+    if (!roundIndicator || !advanceBtn) return;
+
+    if (revealedRound < 0) {
+      roundIndicator.textContent = '';
+      advanceBtn.classList.add('hidden');
+      return;
+    }
+
+    // Show current round label
+    roundIndicator.textContent = ROUND_LABELS[revealedRound];
+
+    if (revealedRound >= 5) {
+      // All rounds revealed — show champion
+      advanceBtn.classList.add('hidden');
+      renderChampionBanner();
+      championBanner.classList.remove('hidden');
+      championBanner.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      advanceBtn.classList.remove('hidden');
+      advanceBtn.textContent = `Advance to ${ROUND_LABELS[revealedRound + 1]}`;
+    }
+  }
 
   // ===== Close Detail Panel =====
   if (detailOverlay) {
@@ -129,13 +164,13 @@
     const champ = currentBracket.finalFour.champion;
     const champGame = currentBracket.finalFour.championship;
 
-    championName.textContent = `${champ.name}`;
+    championName.textContent = champ.name;
     championDetails.innerHTML = `<span class="champ-seed">#${champ.seed} seed</span> · <span class="champ-region">${REGIONS[getTeamRegion(champ.name)].name} Region</span> · <span class="champ-record">${champ.record}</span>`;
 
     // Build champion path
     const path = getChampionPath(champ.name);
     championPath.innerHTML = path.map((g, i) => {
-      const roundName = ROUND_NAMES[i];
+      const roundName = ROUND_SHORT[i];
       return `<span class="path-game ${g.isUpset ? 'upset' : ''}">
         <span class="path-round">${roundName}</span>
         <span class="path-opponent">vs ${g.loser} <span class="path-score">${g.score}</span></span>
@@ -144,8 +179,7 @@
 
     // Count upsets
     let upsets = 0;
-    const allRegions = ['east', 'west', 'midwest', 'south'];
-    allRegions.forEach(rk => {
+    ALL_REGIONS.forEach(rk => {
       currentBracket.regions[rk].rounds.forEach(round => {
         round.forEach(game => { if (game.isUpset) upsets++; });
       });
@@ -153,11 +187,11 @@
     [currentBracket.finalFour.semi1, currentBracket.finalFour.semi2, currentBracket.finalFour.championship].forEach(g => {
       if (g.isUpset) upsets++;
     });
-    upsetCounter.textContent = `${upsets} upset${upsets !== 1 ? 's' : ''} in this bracket`;
+    upsetCounter.textContent = `${upsets} upset${upsets !== 1 ? 's' : ''} predicted`;
   }
 
   function getTeamRegion(name) {
-    for (const rk of ['east', 'west', 'midwest', 'south']) {
+    for (const rk of ALL_REGIONS) {
       if (REGIONS[rk].teams.some(t => t.name === name)) return rk;
     }
     return 'east';
@@ -168,7 +202,6 @@
     const champRegion = getTeamRegion(champName);
     const regionRes = currentBracket.regions[champRegion];
 
-    // Traverse regional rounds
     for (let r = 0; r < regionRes.rounds.length; r++) {
       const game = regionRes.rounds[r].find(g => g.winner.name === champName);
       if (game) {
@@ -180,7 +213,6 @@
       }
     }
 
-    // Final Four
     const semis = [currentBracket.finalFour.semi1, currentBracket.finalFour.semi2];
     const semiGame = semis.find(g => g.winner.name === champName);
     if (semiGame) {
@@ -191,7 +223,6 @@
       });
     }
 
-    // Championship
     const champGame = currentBracket.finalFour.championship;
     if (champGame.winner.name === champName) {
       path.push({
@@ -204,98 +235,124 @@
     return path;
   }
 
-  // ===== Render Bracket =====
+  // ===== Render Bracket (round-by-round) =====
   function renderBracket() {
-    if (!currentBracket) return;
+    if (!currentBracket || revealedRound < 0) return;
 
-    if (activeRegion === 'finalfour') {
-      renderFinalFour();
-      return;
-    }
+    let html = '';
 
-    const regionRes = currentBracket.regions[activeRegion];
-    const roundNames = ['Round of 64', 'Round of 32', 'Sweet 16', 'Elite 8'];
-    let html = '<div class="bracket-grid">';
+    // Regional rounds (0-3)
+    if (revealedRound <= 3) {
+      // Show all games up to and including the current revealed round, across all regions
+      html += '<div class="bracket-rounds">';
 
-    regionRes.rounds.forEach((roundGames, roundIdx) => {
-      html += `<div class="bracket-round round-${roundIdx}">`;
-      html += `<div class="round-title">${roundNames[roundIdx]}</div>`;
+      for (let r = 0; r <= Math.min(revealedRound, 3); r++) {
+        const isCurrentRound = (r === revealedRound);
+        html += `<div class="bracket-round-section ${isCurrentRound ? 'current-round' : 'past-round'}" id="round-${r}">`;
+        html += `<div class="round-header"><h3 class="round-title">${ROUND_LABELS[r]}</h3>`;
+        html += `<span class="round-game-count">${r <= 3 ? ALL_REGIONS.reduce((c, rk) => c + currentBracket.regions[rk].rounds[r].length, 0) : ''} games</span></div>`;
 
-      roundGames.forEach((game, gameIdx) => {
-        const seedColor = getSeedColor(game.winner.seed);
-        html += `<div class="game-card ${game.isUpset ? 'upset-game' : ''}" data-round="${roundIdx}" data-game="${gameIdx}" data-region="${activeRegion}">
-          ${game.isUpset ? '<div class="upset-badge">UPSET</div>' : ''}
-          <div class="game-teams">
-            <div class="game-team ${game.winner === game.winner ? 'winner' : ''}" style="--seed-color: ${seedColor}">
-              <span class="g-seed">${game.winner.seed}</span>
-              <span class="g-name">${game.winner.name}</span>
-              <span class="g-score">${game.winnerScore}</span>
-            </div>
-            <div class="game-team loser">
-              <span class="g-seed">${game.loser.seed}</span>
-              <span class="g-name">${game.loser.name}</span>
-              <span class="g-score">${game.loserScore}</span>
-            </div>
-          </div>
-          <div class="game-narrative">${game.narrative.text}</div>
-          <div class="game-factors-mini">
-            ${game.narrative.topFactors.slice(0, 2).map(f => `<span class="factor-tag ${f.value > 0 ? 'positive' : 'negative'}">${f.label}</span>`).join('')}
-          </div>
-          <button class="detail-btn" aria-label="View matchup details">Details →</button>
-        </div>`;
-      });
+        // Show games grouped by region
+        html += '<div class="round-regions">';
+        ALL_REGIONS.forEach(rk => {
+          const regionRound = currentBracket.regions[rk].rounds[r];
+          if (!regionRound || regionRound.length === 0) return;
+          html += `<div class="region-group">`;
+          html += `<div class="region-group-label">${REGIONS[rk].name}</div>`;
+          html += '<div class="region-games">';
+          regionRound.forEach((game, gi) => {
+            html += renderGameCard(game, rk, r, gi, isCurrentRound);
+          });
+          html += '</div></div>';
+        });
+        html += '</div></div>';
+      }
 
       html += '</div>';
-    });
 
-    html += '</div>';
+    } else {
+      // Final Four + Championship (rounds 4-5)
+      html += '<div class="bracket-rounds">';
+
+      // Show collapsed summary of regional rounds
+      html += renderRegionalSummary();
+
+      // Final Four (round 4)
+      if (revealedRound >= 4) {
+        const ff = currentBracket.finalFour;
+        const isCurrentFF = (revealedRound === 4);
+        html += `<div class="bracket-round-section ${isCurrentFF ? 'current-round' : 'past-round'}" id="round-4">`;
+        html += `<div class="round-header"><h3 class="round-title">Final Four</h3></div>`;
+        html += '<div class="round-regions"><div class="region-games ff-games">';
+        html += renderGameCard(ff.semi1, 'ff', 4, 0, isCurrentFF, 'East vs South');
+        html += renderGameCard(ff.semi2, 'ff', 4, 1, isCurrentFF, 'West vs Midwest');
+        html += '</div></div></div>';
+      }
+
+      // Championship (round 5)
+      if (revealedRound >= 5) {
+        const ff = currentBracket.finalFour;
+        html += `<div class="bracket-round-section current-round" id="round-5">`;
+        html += `<div class="round-header"><h3 class="round-title">National Championship</h3></div>`;
+        html += '<div class="round-regions"><div class="region-games ff-games">';
+        html += renderGameCard(ff.championship, 'ff', 5, 0, true, 'Title Game');
+        html += '</div></div></div>';
+      }
+
+      html += '</div>';
+    }
+
     bracketArea.innerHTML = html;
 
-    // Attach click handlers
-    bracketArea.querySelectorAll('.game-card').forEach(card => {
-      card.querySelector('.detail-btn').addEventListener('click', (e) => {
+    // Attach detail button handlers
+    bracketArea.querySelectorAll('.detail-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        const r = parseInt(card.dataset.round);
-        const g = parseInt(card.dataset.game);
+        const card = btn.closest('.game-card');
         const region = card.dataset.region;
-        openDetail(region, r, g);
+        const round = parseInt(card.dataset.round);
+        const game = parseInt(card.dataset.game);
+
+        if (region === 'ff') {
+          openFinalFourDetail(round, game);
+        } else {
+          openDetail(region, round, game);
+        }
       });
     });
+
+    // Scroll to the current round section
+    const currentSection = document.getElementById(`round-${revealedRound}`);
+    if (currentSection) {
+      setTimeout(() => {
+        currentSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 100);
+    }
   }
 
-  // ===== Render Final Four =====
-  function renderFinalFour() {
-    if (!currentBracket) return;
-    const ff = currentBracket.finalFour;
-
-    let html = '<div class="final-four-bracket">';
-
-    // Semi 1: East vs South
-    html += renderFinalFourGame(ff.semi1, 'Semifinal 1', 'East vs South', 'semi1');
-
-    // Semi 2: West vs Midwest
-    html += renderFinalFourGame(ff.semi2, 'Semifinal 2', 'West vs Midwest', 'semi2');
-
-    // Championship
-    html += renderFinalFourGame(ff.championship, 'Championship', 'National Title Game', 'championship');
-
-    html += '</div>';
-    bracketArea.innerHTML = html;
-
-    // Attach click handlers
-    bracketArea.querySelectorAll('.ff-game-card').forEach(card => {
-      card.querySelector('.detail-btn').addEventListener('click', (e) => {
-        e.stopPropagation();
-        openFinalFourDetail(card.dataset.game);
-      });
+  function renderRegionalSummary() {
+    let html = '<div class="regional-summary">';
+    html += '<div class="summary-label">Regional Winners</div>';
+    html += '<div class="summary-teams">';
+    ALL_REGIONS.forEach(rk => {
+      const winner = currentBracket.regions[rk].regionWinner;
+      html += `<div class="summary-team">
+        <span class="summary-seed">${winner.seed}</span>
+        <span class="summary-name">${winner.name}</span>
+        <span class="summary-region">${REGIONS[rk].name}</span>
+      </div>`;
     });
+    html += '</div></div>';
+    return html;
   }
 
-  function renderFinalFourGame(game, label, subtitle, dataKey) {
+  function renderGameCard(game, region, round, gameIdx, isNew, subtitle) {
     const seedColor = getSeedColor(game.winner.seed);
-    return `<div class="ff-game-card" data-game="${dataKey}">
-      <div class="ff-game-label">${label}</div>
-      <div class="ff-game-subtitle">${subtitle}</div>
+    const winProb = game.winProb ? `${(game.winProb * 100).toFixed(0)}%` : '';
+    const marginLabel = game.margin ? game.margin.toFixed(1) : '';
+
+    return `<div class="game-card ${game.isUpset ? 'upset-game' : ''} ${isNew ? 'new-reveal' : ''}" data-round="${round}" data-game="${gameIdx}" data-region="${region}">
+      ${subtitle ? `<div class="game-subtitle">${subtitle}</div>` : ''}
       ${game.isUpset ? '<div class="upset-badge">UPSET</div>' : ''}
       <div class="game-teams">
         <div class="game-team winner" style="--seed-color: ${seedColor}">
@@ -308,6 +365,9 @@
           <span class="g-name">${game.loser.name}</span>
           <span class="g-score">${game.loserScore}</span>
         </div>
+      </div>
+      <div class="game-meta">
+        ${winProb ? `<span class="game-confidence">Model confidence: ${winProb}</span>` : ''}
       </div>
       <div class="game-narrative">${game.narrative.text}</div>
       <div class="game-factors-mini">
@@ -323,9 +383,14 @@
     renderDetailPanel(game);
   }
 
-  function openFinalFourDetail(key) {
+  function openFinalFourDetail(round, gameIdx) {
     const ff = currentBracket.finalFour;
-    const game = key === 'semi1' ? ff.semi1 : key === 'semi2' ? ff.semi2 : ff.championship;
+    let game;
+    if (round === 4) {
+      game = gameIdx === 0 ? ff.semi1 : ff.semi2;
+    } else {
+      game = ff.championship;
+    }
     renderDetailPanel(game);
   }
 
@@ -335,11 +400,10 @@
     const l = game.loser;
     const f = game.factors;
 
-    // All 11 factors with labels and explanations
     const factorRows = [
       { label: 'Efficiency Matchup', val: f.efficiency, desc: `${w.name}: ${w.adjOE.toFixed(1)} AdjOE / ${w.adjDE.toFixed(1)} AdjDE vs ${l.name}: ${l.adjOE.toFixed(1)} / ${l.adjDE.toFixed(1)}`, num: '1' },
       { label: 'Tempo Mismatch', val: f.tempo, desc: `Game tempo: ${((w.tempo + l.tempo) / 2).toFixed(1)} | ${w.name}: ${w.tempo} · ${l.name}: ${l.tempo}`, num: '2' },
-      { label: '3PT Variance', val: f.threePoint, desc: `${w.name}: ${(f.teamA_3ptPctGame !== undefined ? (game.winner === game.winner ? f.teamA_3ptPctGame : f.teamB_3ptPctGame) * 100 : 0).toFixed(0)}% (season ${(w.threePtPct * 100).toFixed(0)}%) · Rate: ${(w.threePtRate * 100).toFixed(0)}%`, num: '3' },
+      { label: '3PT Variance', val: f.threePoint, desc: `${w.name}: ${(w.threePtPct * 100).toFixed(0)}% (${(w.threePtRate * 100).toFixed(0)}% rate) · ${l.name}: ${(l.threePtPct * 100).toFixed(0)}% (${(l.threePtRate * 100).toFixed(0)}% rate)`, num: '3' },
       { label: 'Free Throw Clutch', val: f.freeThrow, desc: `${w.name}: ${(w.ftPct * 100).toFixed(1)}% FT vs ${l.name}: ${(l.ftPct * 100).toFixed(1)}% FT`, num: '4' },
       { label: 'Experience', val: f.experience, desc: `${w.name}: ${w.experience.toFixed(1)}yr roster / ${w.toureyExp} tourney exp vs ${l.name}: ${l.experience.toFixed(1)}yr / ${l.toureyExp}`, num: '5' },
       { label: 'Momentum', val: f.momentum, desc: `${w.name}: ${w.hotStreak > 0 ? '+' : ''}${w.hotStreak} vs ${l.name}: ${l.hotStreak > 0 ? '+' : ''}${l.hotStreak}`, num: '6' },
@@ -372,6 +436,7 @@
             <span class="detail-score">${game.loserScore}</span>
           </div>
         </div>
+        ${game.winProb ? `<div class="detail-confidence">Model confidence: ${(game.winProb * 100).toFixed(1)}%</div>` : ''}
         ${game.isUpset ? '<div class="detail-upset-tag">UPSET</div>' : ''}
       </div>
 
@@ -564,7 +629,7 @@
     return 'var(--color-seed-low)';
   }
 
-  // ===== Initial Simulation =====
+  // ===== Auto-generate on load =====
   setTimeout(() => {
     simBtn.click();
   }, 300);
