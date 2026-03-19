@@ -126,12 +126,8 @@
     }
 
     const teams = REGIONS[regionKey].teams;
-    const matchupProbs = engine.getMatchupProbabilities(regionKey);
-    
-    // Build round structure
-    // Round 1: 8 matchups
     const roundNames = ['Round of 64', 'Round of 32', 'Sweet 16', 'Elite 8'];
-    
+
     // Get simulation data if available
     const simData = {};
     if (currentResults) {
@@ -140,9 +136,21 @@
       });
     }
 
+    // Bracket slot structure:
+    // R64 slots (8 matchups): [0,1], [2,3], [4,5], [6,7], [8,9], [10,11], [12,13], [14,15]
+    // R32 slots (4 matchups): teams from slots [0-3], [4-7], [8-11], [12-15]
+    // S16 slots (2 matchups): teams from slots [0-7], [8-15]
+    // E8 slot (1 matchup): all 16 teams
+    const r32Slots = [
+      [0,1,2,3], [4,5,6,7], [8,9,10,11], [12,13,14,15]
+    ];
+    const s16Slots = [
+      [0,1,2,3,4,5,6,7], [8,9,10,11,12,13,14,15]
+    ];
+
     let html = '<div class="bracket-grid">';
 
-    // Round 1
+    // Round 1 (R64)
     html += '<div class="bracket-round">';
     html += `<div class="round-title">${roundNames[0]}</div>`;
     for (let i = 0; i < teams.length; i += 2) {
@@ -150,16 +158,14 @@
       const tB = teams[i + 1];
       const probA = engine.winProbability(tA.rating, tB.rating);
       const probB = 1 - probA;
-      const winnerA = probA > probB;
-
       html += `
         <div class="matchup">
-          <div class="matchup-team ${winnerA ? 'winner' : ''}">
+          <div class="matchup-team ${probA >= probB ? 'winner' : ''}">
             <span class="team-seed">${tA.seed}</span>
             <span class="team-name">${tA.name}</span>
             <span class="team-pct ${probA > 0.7 ? 'high' : ''}">${(probA * 100).toFixed(0)}%</span>
           </div>
-          <div class="matchup-team ${!winnerA ? 'winner' : ''}">
+          <div class="matchup-team ${probB > probA ? 'winner' : ''}">
             <span class="team-seed">${tB.seed}</span>
             <span class="team-name">${tB.name}</span>
             <span class="team-pct ${probB > 0.7 ? 'high' : ''}">${(probB * 100).toFixed(0)}%</span>
@@ -168,90 +174,61 @@
     }
     html += '</div>';
 
-    // Subsequent rounds (show probabilities from sim data)
-    const roundKeys = ['r32', 's16', 'e8'];
-    for (let r = 0; r < 3; r++) {
-      const numMatchups = 4 / Math.pow(2, r);
-      html += '<div class="bracket-round">';
-      html += `<div class="round-title">${roundNames[r + 1]}</div>`;
-      
-      if (currentResults) {
-        // Get teams sorted by their probability of reaching this round
-        const roundKey = roundKeys[r];
-        const regionTeams = currentResults
-          .filter(t => t.region === regionKey && t[roundKey] > 0)
-          .sort((a, b) => b[roundKey] - a[roundKey]);
-
-        // Group into matchup slots based on bracket position
-        const slots = getBracketSlots(regionKey, r + 1);
-        slots.forEach(slot => {
-          html += '<div class="matchup">';
-          slot.forEach(teamName => {
-            const td = simData[teamName];
-            if (td) {
-              const pct = td[roundKey];
-              html += `
-                <div class="matchup-team ${pct > 50 ? 'winner' : ''}">
-                  <span class="team-seed">${td.seed}</span>
-                  <span class="team-name">${td.name}</span>
-                  <span class="team-pct ${pct > 60 ? 'high' : ''}">${pct.toFixed(1)}%</span>
-                </div>`;
-            }
-          });
-          html += '</div>';
-        });
-      } else {
-        // No sim data yet — show placeholder
-        for (let m = 0; m < numMatchups; m++) {
-          html += `
-            <div class="matchup">
-              <div class="matchup-team"><span class="team-name" style="color:var(--color-text-faint)">Run simulation</span></div>
-              <div class="matchup-team"><span class="team-name" style="color:var(--color-text-faint)">to see picks</span></div>
-            </div>`;
-        }
+    // Helper: render a matchup from a subset of teams, showing top 2 by probability for a given round key
+    function renderSlotMatchup(slotIndices, roundKey) {
+      if (!currentResults) {
+        return `<div class="matchup">
+          <div class="matchup-team"><span class="team-name" style="color:var(--color-text-faint)">TBD</span></div>
+          <div class="matchup-team"><span class="team-name" style="color:var(--color-text-faint)">TBD</span></div>
+        </div>`;
       }
-      html += '</div>';
+      const slotTeams = slotIndices.map(i => {
+        const t = teams[i];
+        return simData[t.name];
+      }).filter(t => t && t[roundKey] > 0)
+        .sort((a, b) => b[roundKey] - a[roundKey])
+        .slice(0, 2);
+
+      if (slotTeams.length === 0) {
+        return `<div class="matchup">
+          <div class="matchup-team"><span class="team-name" style="color:var(--color-text-faint)">TBD</span></div>
+          <div class="matchup-team"><span class="team-name" style="color:var(--color-text-faint)">TBD</span></div>
+        </div>`;
+      }
+
+      let h = '<div class="matchup">';
+      slotTeams.forEach((td, idx) => {
+        const pct = td[roundKey];
+        h += `<div class="matchup-team ${idx === 0 ? 'winner' : ''}">
+          <span class="team-seed">${td.seed}</span>
+          <span class="team-name">${td.name}</span>
+          <span class="team-pct ${pct > 60 ? 'high' : ''}">${pct.toFixed(1)}%</span>
+        </div>`;
+      });
+      h += '</div>';
+      return h;
     }
+
+    // R32 (4 matchups)
+    html += '<div class="bracket-round">';
+    html += `<div class="round-title">${roundNames[1]}</div>`;
+    r32Slots.forEach(slot => { html += renderSlotMatchup(slot, 'r32'); });
+    html += '</div>';
+
+    // S16 (2 matchups)
+    html += '<div class="bracket-round">';
+    html += `<div class="round-title">${roundNames[2]}</div>`;
+    s16Slots.forEach(slot => { html += renderSlotMatchup(slot, 's16'); });
+    html += '</div>';
+
+    // E8 (1 matchup = region final)
+    html += '<div class="bracket-round">';
+    html += `<div class="round-title">${roundNames[3]}</div>`;
+    html += renderSlotMatchup(Array.from({length: 16}, (_, i) => i), 'e8');
+    html += '</div>';
 
     html += '</div>';
     bracketContainer.innerHTML = html;
-  }
-
-  /**
-   * Get bracket slot groupings for later rounds
-   * Returns array of [teamNameA, teamNameB] pairs based on bracket position
-   */
-  function getBracketSlots(regionKey, round) {
-    const teams = REGIONS[regionKey].teams;
-    // Round 1 matchup winners feed into round 2 in order
-    // Bracket structure: 
-    // R32: (1/16 winner vs 8/9 winner), (5/12 vs 4/13), (6/11 vs 3/14), (7/10 vs 2/15)
-    // S16: (top half R32 winner vs bottom half R32 winner in each half)
-    // E8: S16 winners
-    
-    if (round === 1) {
-      // R32: pairs of R64 matchup-winner slots
-      return [
-        [teams[0].name, teams[1].name, teams[2].name, teams[3].name],  // 1/16 vs 8/9
-        [teams[4].name, teams[5].name, teams[6].name, teams[7].name],  // 5/12 vs 4/13
-        [teams[8].name, teams[9].name, teams[10].name, teams[11].name], // 6/11 vs 3/14
-        [teams[12].name, teams[13].name, teams[14].name, teams[15].name], // 7/10 vs 2/15
-      ];
-    }
-    if (round === 2) {
-      // S16: top half vs bottom half
-      return [
-        [teams[0].name, teams[1].name, teams[2].name, teams[3].name,
-         teams[4].name, teams[5].name, teams[6].name, teams[7].name],
-        [teams[8].name, teams[9].name, teams[10].name, teams[11].name,
-         teams[12].name, teams[13].name, teams[14].name, teams[15].name],
-      ];
-    }
-    if (round === 3) {
-      // E8: all teams in region
-      return [teams.map(t => t.name)];
-    }
-    return [];
   }
 
   // ===== Render Final Four =====
