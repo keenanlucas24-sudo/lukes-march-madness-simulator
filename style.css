@@ -603,6 +603,34 @@ main {
   color: var(--color-text-muted);
 }
 
+/* ===== Upset Alert ===== */
+.matchup.upset-alert {
+  border-color: var(--color-yellow);
+  position: relative;
+}
+
+.upset-tag {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  background: var(--color-yellow);
+  color: #000;
+  font-size: 0.6rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 0 var(--radius-md) 0 var(--radius-sm);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.card-insight {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  font-style: italic;
+  line-height: 1.4;
+  min-height: 2em;
+}
+
 /* ===== Methodology ===== */
 .methodology-grid {
   display: grid;

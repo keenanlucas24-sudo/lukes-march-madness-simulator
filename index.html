@@ -97,6 +97,7 @@
           <option value="finalfour">Sort by: Final Four %</option>
           <option value="sweet16">Sort by: Sweet 16 %</option>
           <option value="seed">Sort by: Seed</option>
+          <option value="upset">Sort by: Upset Potential</option>
         </select>
       </div>
       <div class="table-wrapper">
@@ -123,19 +124,35 @@
 
     <!-- Methodology -->
     <section class="methodology-section">
-      <h2 class="section-title">Methodology</h2>
+      <h2 class="section-title">7-Factor Simulation Model</h2>
       <div class="methodology-grid">
         <div class="method-card">
-          <h3>Team Ratings</h3>
-          <p>Each team is assigned a composite power rating derived from KenPom adjusted efficiency margin, NET rankings, and win-loss record strength. Ratings are normalized to produce win probabilities for each matchup.</p>
+          <h3>1. Efficiency Matchup</h3>
+          <p>Not just "who is better" — each team's offense is evaluated against the specific opponent's defense. A 130 AdjOE vs. a 90 AdjDE plays very differently than vs. a 100 AdjDE. Uses KenPom adjusted efficiency data.</p>
         </div>
         <div class="method-card">
-          <h3>Win Probability</h3>
-          <p>Game outcomes use a logistic model: P(A wins) = 1 / (1 + 10^((R_B - R_A) / 15)), where R is the team's power rating. This produces realistic upset rates aligned with historical seed-matchup data.</p>
+          <h3>2. Tempo Mismatch</h3>
+          <p>Harvard Sports Analysis found tempo manipulation drives upsets. UMBC sped Virginia up; FDU slowed Purdue down. When teams are forced out of their preferred pace, variance spikes. Low-tempo games are inherently more random.</p>
         </div>
         <div class="method-card">
-          <h3>Monte Carlo Engine</h3>
-          <p>The full 63-game tournament is simulated thousands of times. Each simulation randomly resolves every game using the win probabilities. Results are aggregated to show how often each team reaches each round.</p>
+          <h3>3. Three-Point Variance</h3>
+          <p>The great equalizer. Game-to-game 3PT% has ~8.5% standard deviation. A 35% shooter can go 2/16 or 8/16 any night. Teams with high 3PT rates (Alabama: 48%) are explosive but volatile. Each game simulates actual shooting variance.</p>
+        </div>
+        <div class="method-card">
+          <h3>4. Free Throw Clutch</h3>
+          <p>Champions shoot 71.9% FT vs. 70.1% field average. In close tournament games, FT shooting decides outcomes. The model simulates actual FT attempts and makes per game, with higher impact in tight contests.</p>
+        </div>
+        <div class="method-card">
+          <h3>5. Experience Factor</h3>
+          <p>Veteran rosters handle tournament pressure better. First-time tournament programs get a "bright lights" penalty. Roster continuity and program tournament history both factor into composure under pressure.</p>
+        </div>
+        <div class="method-card">
+          <h3>6. Consistency / Volatility</h3>
+          <p>Rock-solid teams (Michigan: 0.90) rarely get upset but rarely upset others. Volatile teams (Alabama: 0.55) can beat anyone or lose to anyone. Inconsistency increases variance in both directions.</p>
+        </div>
+        <div class="method-card">
+          <h3>7. Depth & Fatigue</h3>
+          <p>Deep benches matter more each round as games come every 2 days. Thin benches fade late. Gonzaga's 42% bench minutes vs. Texas Tech's 19% becomes a massive factor by the Elite 8.</p>
         </div>
       </div>
     </section>
