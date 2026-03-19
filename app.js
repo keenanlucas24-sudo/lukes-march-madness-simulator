@@ -128,9 +128,12 @@
     if (t.adjOE >= 128) return 'Offensive juggernaut — can outscore anyone';
     if (t.experience >= 3.0) return 'Veteran roster — clutch in close games';
     if (t.hotStreak >= 1.5) return 'Red hot entering tournament';
-    if (t.benchDepth >= 0.36) return 'Deep bench — built for 6-game gauntlet';
-    if (t.tempo <= 64) return 'Pace-controlling — forces opponents out of rhythm';
-    return `AdjEM: +${(t.adjOE - t.adjDE).toFixed(1)}`;
+    if (t.benchDepth >= 0.36) return 'Deep bench — built for a 6-game run';
+    if (t.tempo <= 64) return 'Pace-controlling — forces opponents off rhythm';
+    if (t.adjOE - t.adjDE >= 28) return 'Two-way powerhouse — elite on both ends';
+    if (t.toureyExp >= 4) return 'Tournament pedigree — thrives under pressure';
+    if (t.consistency >= 0.72) return 'Steady and reliable — few off nights';
+    return `Strong all-around — +${(t.adjOE - t.adjDE).toFixed(0)} efficiency margin`;
   }
 
   // ===== Render Bracket =====

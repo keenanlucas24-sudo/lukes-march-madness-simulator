@@ -263,7 +263,7 @@ main {
 /* ===== Summary Cards ===== */
 .summary-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(4, 1fr);
   gap: var(--space-3);
 }
 
@@ -679,6 +679,7 @@ footer a:hover { color: var(--color-text-muted); }
   .header-controls { width: 100%; justify-content: space-between; }
   main { padding: var(--space-4); gap: var(--space-6); }
   .summary-cards { grid-template-columns: repeat(2, 1fr); }
+  .bracket-round { min-width: 180px; }
   .final-four-grid {
     grid-template-columns: 1fr;
     grid-template-rows: auto;
