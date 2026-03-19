@@ -337,17 +337,17 @@
 
     // All 11 factors with labels and explanations
     const factorRows = [
-      { label: 'Efficiency Matchup', val: f.efficiency, desc: `${w.name}: ${w.adjOE.toFixed(1)} AdjOE / ${w.adjDE.toFixed(1)} AdjDE vs ${l.name}: ${l.adjOE.toFixed(1)} / ${l.adjDE.toFixed(1)}`, icon: '📊' },
-      { label: 'Tempo Mismatch', val: f.tempo, desc: `Game tempo: ${((w.tempo + l.tempo) / 2).toFixed(1)} | ${w.name}: ${w.tempo} · ${l.name}: ${l.tempo}`, icon: '⏱️' },
-      { label: '3PT Variance', val: f.threePoint, desc: `${w.name}: ${(f.teamA_3ptPctGame !== undefined ? (game.winner === game.winner ? f.teamA_3ptPctGame : f.teamB_3ptPctGame) * 100 : 0).toFixed(0)}% (season ${(w.threePtPct * 100).toFixed(0)}%) · Rate: ${(w.threePtRate * 100).toFixed(0)}%`, icon: '🎯' },
-      { label: 'Free Throw Clutch', val: f.freeThrow, desc: `${w.name}: ${(w.ftPct * 100).toFixed(1)}% FT vs ${l.name}: ${(l.ftPct * 100).toFixed(1)}% FT`, icon: '🏀' },
-      { label: 'Experience', val: f.experience, desc: `${w.name}: ${w.experience.toFixed(1)}yr roster / ${w.toureyExp} tourney exp vs ${l.name}: ${l.experience.toFixed(1)}yr / ${l.toureyExp}`, icon: '🎓' },
-      { label: 'Momentum', val: f.momentum, desc: `${w.name}: ${w.hotStreak > 0 ? '+' : ''}${w.hotStreak} vs ${l.name}: ${l.hotStreak > 0 ? '+' : ''}${l.hotStreak}`, icon: '🔥' },
-      { label: 'Bench Depth', val: f.depth, desc: `${w.name}: ${(w.benchDepth * 100).toFixed(0)}% bench min vs ${l.name}: ${(l.benchDepth * 100).toFixed(0)}%`, icon: '👥' },
-      { label: 'Coaching', val: f.coaching, desc: `${w.name}: ${w.coachRating}/5 vs ${l.name}: ${l.coachRating}/5`, icon: '🧠' },
-      { label: 'Injuries', val: f.injuries, desc: `${w.injuryNotes || 'Healthy'} vs ${l.injuryNotes || 'Healthy'}`, icon: '🏥' },
-      { label: 'Conference', val: f.conference, desc: `${w.name}: ${w.confStrength > 0 ? '+' : ''}${w.confStrength.toFixed(2)} vs ${l.name}: ${l.confStrength > 0 ? '+' : ''}${l.confStrength.toFixed(2)}`, icon: '🏛️' },
-      { label: 'Vegas Calibration', val: f.vegasCalibration, desc: `${w.vegasImplied ? (w.vegasImplied * 100).toFixed(1) + '% implied' : 'N/A'} | Spread: ${w.vegasSpread || 'N/A'}`, icon: '💰' },
+      { label: 'Efficiency Matchup', val: f.efficiency, desc: `${w.name}: ${w.adjOE.toFixed(1)} AdjOE / ${w.adjDE.toFixed(1)} AdjDE vs ${l.name}: ${l.adjOE.toFixed(1)} / ${l.adjDE.toFixed(1)}`, num: '1' },
+      { label: 'Tempo Mismatch', val: f.tempo, desc: `Game tempo: ${((w.tempo + l.tempo) / 2).toFixed(1)} | ${w.name}: ${w.tempo} · ${l.name}: ${l.tempo}`, num: '2' },
+      { label: '3PT Variance', val: f.threePoint, desc: `${w.name}: ${(f.teamA_3ptPctGame !== undefined ? (game.winner === game.winner ? f.teamA_3ptPctGame : f.teamB_3ptPctGame) * 100 : 0).toFixed(0)}% (season ${(w.threePtPct * 100).toFixed(0)}%) · Rate: ${(w.threePtRate * 100).toFixed(0)}%`, num: '3' },
+      { label: 'Free Throw Clutch', val: f.freeThrow, desc: `${w.name}: ${(w.ftPct * 100).toFixed(1)}% FT vs ${l.name}: ${(l.ftPct * 100).toFixed(1)}% FT`, num: '4' },
+      { label: 'Experience', val: f.experience, desc: `${w.name}: ${w.experience.toFixed(1)}yr roster / ${w.toureyExp} tourney exp vs ${l.name}: ${l.experience.toFixed(1)}yr / ${l.toureyExp}`, num: '5' },
+      { label: 'Momentum', val: f.momentum, desc: `${w.name}: ${w.hotStreak > 0 ? '+' : ''}${w.hotStreak} vs ${l.name}: ${l.hotStreak > 0 ? '+' : ''}${l.hotStreak}`, num: '6' },
+      { label: 'Bench Depth', val: f.depth, desc: `${w.name}: ${(w.benchDepth * 100).toFixed(0)}% bench min vs ${l.name}: ${(l.benchDepth * 100).toFixed(0)}%`, num: '7' },
+      { label: 'Coaching', val: f.coaching, desc: `${w.name}: ${w.coachRating}/5 vs ${l.name}: ${l.coachRating}/5`, num: '8' },
+      { label: 'Injuries', val: f.injuries, desc: `${w.injuryNotes || 'Healthy'} vs ${l.injuryNotes || 'Healthy'}`, num: '9' },
+      { label: 'Conference', val: f.conference, desc: `${w.name}: ${w.confStrength > 0 ? '+' : ''}${w.confStrength.toFixed(2)} vs ${l.name}: ${l.confStrength > 0 ? '+' : ''}${l.confStrength.toFixed(2)}`, num: '10' },
+      { label: 'Vegas Calibration', val: f.vegasCalibration, desc: `${w.vegasImplied ? (w.vegasImplied * 100).toFixed(1) + '% implied' : 'N/A'} | Spread: ${w.vegasSpread || 'N/A'}`, num: '11' },
     ];
 
     let html = `
@@ -389,7 +389,7 @@
       const favorsLoser = fr.val < -0.05;
       return `<div class="factor-row">
             <div class="factor-info">
-              <span class="factor-icon">${fr.icon}</span>
+              <span class="factor-icon">${fr.num}</span>
               <span class="factor-name">${fr.label}</span>
               <span class="factor-val ${favorsWinner ? 'positive' : favorsLoser ? 'negative' : 'neutral'}">${fr.val > 0 ? '+' : ''}${fr.val.toFixed(2)}</span>
             </div>
@@ -414,12 +414,18 @@
         <div class="coaching-grid">
           <div class="coaching-card">
             <div class="coaching-team">${w.name}</div>
-            <div class="coaching-rating">${'★'.repeat(Math.round(w.coachRating))}${'☆'.repeat(5 - Math.round(w.coachRating))}</div>
+            <div class="coaching-rating-bar">
+              <div class="coaching-bar-track"><div class="coaching-bar-fill" style="width:${(w.coachRating / 5 * 100)}%"></div></div>
+              <span class="coaching-score">${w.coachRating}/5</span>
+            </div>
             <div class="coaching-note">${w.coachNotes || 'No notes available'}</div>
           </div>
           <div class="coaching-card">
             <div class="coaching-team">${l.name}</div>
-            <div class="coaching-rating">${'★'.repeat(Math.round(l.coachRating))}${'☆'.repeat(5 - Math.round(l.coachRating))}</div>
+            <div class="coaching-rating-bar">
+              <div class="coaching-bar-track"><div class="coaching-bar-fill" style="width:${(l.coachRating / 5 * 100)}%"></div></div>
+              <span class="coaching-score">${l.coachRating}/5</span>
+            </div>
             <div class="coaching-note">${l.coachNotes || 'No notes available'}</div>
           </div>
         </div>
@@ -461,7 +467,7 @@
         <div class="stat"><span class="stat-label">SOS Rank</span><span class="stat-val">#${team.sos}</span></div>
         <div class="stat"><span class="stat-label">Coach</span><span class="stat-val">${team.coachRating}/5</span></div>
       </div>
-      ${team.injuryImpact < 0 ? `<div class="profile-injury">⚠️ ${team.injuryNotes}</div>` : ''}
+      ${team.injuryImpact < 0 ? `<div class="profile-injury">INJ: ${team.injuryNotes}</div>` : ''}
     </div>`;
   }
 
@@ -520,8 +526,8 @@
       const fmt = (v) => v < 0.05 ? '<0.1' : v.toFixed(1);
       const cls = (v) => v > 10 ? 'col-pct highlight' : 'col-pct';
       const aem = (t.adjOE - t.adjDE).toFixed(1);
-      const inj = t.injuryImpact < -0.1 ? ' ⚠️' : '';
-      const coach = t.coachRating >= 4.5 ? ' ★' : '';
+      const inj = t.injuryImpact < -0.1 ? ' [INJ]' : '';
+      const coach = t.coachRating >= 4.5 ? ' [HC]' : '';
 
       return `<tr>
         <td class="col-seed">${t.seed}</td>
