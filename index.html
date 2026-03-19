@@ -17,7 +17,7 @@
 <link rel="author" href="https://www.perplexity.ai/computer">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>March Madness 2026 — Monte Carlo Simulator</title>
+<title>March Madness 2026 — Bracket Simulator</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@300..800&display=swap" rel="stylesheet">
@@ -35,23 +35,14 @@
         </svg>
         <div class="logo-text">
           <span class="logo-title">MARCH MADNESS</span>
-          <span class="logo-sub">Monte Carlo Simulator</span>
+          <span class="logo-sub">11-Factor Bracket Simulator · 2026</span>
         </div>
       </div>
       <div class="header-controls">
-        <div class="sim-count-control">
-          <label for="simCount">Simulations</label>
-          <select id="simCount">
-            <option value="1000">1,000</option>
-            <option value="5000">5,000</option>
-            <option value="10000" selected>10,000</option>
-            <option value="50000">50,000</option>
-            <option value="100000">100,000</option>
-          </select>
-        </div>
-        <button id="runSimBtn" class="btn-primary">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-          Run Simulation
+        <span id="bracketNumber" class="bracket-number">#0</span>
+        <button id="simBtn" class="btn-primary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>
+          Simulate Bracket
         </button>
         <button data-theme-toggle aria-label="Switch theme">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
@@ -61,102 +52,165 @@
   </header>
 
   <main>
-    <!-- Progress bar -->
-    <div id="progressArea" class="progress-area hidden">
-      <div class="progress-bar">
-        <div id="progressFill" class="progress-fill"></div>
+    <!-- View Tabs: Bracket / Probabilities / Methodology -->
+    <nav class="view-tabs">
+      <button class="view-tab active" data-view="bracket">Bracket</button>
+      <button class="view-tab" data-view="probabilities">Probabilities</button>
+      <button class="view-tab" data-view="methodology">Methodology</button>
+    </nav>
+
+    <!-- ===== BRACKET VIEW ===== -->
+    <div id="bracketView">
+      <!-- Champion Banner -->
+      <section id="championBanner" class="champion-banner hidden">
+        <div class="champion-trophy">🏆</div>
+        <div class="champion-info">
+          <div class="champion-label">Simulated Champion</div>
+          <h2 id="championName" class="champion-name"></h2>
+          <div id="championDetails" class="champion-details"></div>
+        </div>
+        <div class="champion-path-area">
+          <div class="path-label">Path to the Title</div>
+          <div id="championPath" class="champion-path"></div>
+        </div>
+        <div id="upsetCounter" class="upset-counter"></div>
+      </section>
+
+      <!-- Region Tabs -->
+      <div class="region-tabs">
+        <button class="region-tab active" data-region="east">East</button>
+        <button class="region-tab" data-region="west">West</button>
+        <button class="region-tab" data-region="midwest">Midwest</button>
+        <button class="region-tab" data-region="south">South</button>
+        <button class="region-tab" data-region="finalfour">Final Four</button>
       </div>
-      <p id="progressText" class="progress-text">Running simulations...</p>
+
+      <!-- Bracket Area -->
+      <div id="bracketArea" class="bracket-area hidden"></div>
     </div>
 
-    <!-- Summary Cards -->
-    <section id="summarySection" class="summary-section hidden">
-      <h2 class="section-title">Championship Probabilities</h2>
-      <div id="summaryCards" class="summary-cards"></div>
-    </section>
+    <!-- ===== PROBABILITIES VIEW ===== -->
+    <div id="probView" class="hidden">
+      <div id="progressArea" class="progress-area hidden">
+        <div class="progress-bar">
+          <div id="progressFill" class="progress-fill"></div>
+        </div>
+        <p id="progressText" class="progress-text">Running simulations...</p>
+      </div>
 
-    <!-- Bracket View -->
-    <section id="bracketSection" class="bracket-section">
-      <div class="bracket-tabs">
-        <button class="tab active" data-region="east">East</button>
-        <button class="tab" data-region="west">West</button>
-        <button class="tab" data-region="midwest">Midwest</button>
-        <button class="tab" data-region="south">South</button>
-        <button class="tab" data-region="finalfour">Final Four</button>
-      </div>
-      <div id="bracketContainer" class="bracket-container"></div>
-    </section>
+      <section id="tableSection" class="table-section hidden">
+        <h2 class="section-title">Aggregate Probability Breakdown <span class="section-subtitle">(10,000 simulations)</span></h2>
+        <div class="table-controls">
+          <input type="text" id="teamSearch" placeholder="Search teams..." class="search-input">
+          <select id="tableSort" class="sort-select">
+            <option value="champion">Sort by: Championship %</option>
+            <option value="finalfour">Sort by: Final Four %</option>
+            <option value="sweet16">Sort by: Sweet 16 %</option>
+            <option value="seed">Sort by: Seed</option>
+            <option value="upset">Sort by: Upset Potential</option>
+          </select>
+        </div>
+        <div class="table-wrapper">
+          <table id="probTable">
+            <thead>
+              <tr>
+                <th>Seed</th>
+                <th>Team</th>
+                <th>Region</th>
+                <th>Rating</th>
+                <th>Coach</th>
+                <th>R64</th>
+                <th>R32</th>
+                <th>S16</th>
+                <th>E8</th>
+                <th>F4</th>
+                <th>Finals</th>
+                <th>Champ</th>
+              </tr>
+            </thead>
+            <tbody id="probTableBody"></tbody>
+          </table>
+        </div>
+        <div class="table-legend">
+          ⚠️ = Key injury/suspension · ★ = Elite coach (4.5+/5) · Highlighted = >10%
+        </div>
+      </section>
+    </div>
 
-    <!-- Detailed Table -->
-    <section id="tableSection" class="table-section hidden">
-      <h2 class="section-title">Full Probability Breakdown</h2>
-      <div class="table-controls">
-        <input type="text" id="teamSearch" placeholder="Search teams..." class="search-input">
-        <select id="tableSort" class="sort-select">
-          <option value="champion">Sort by: Championship %</option>
-          <option value="finalfour">Sort by: Final Four %</option>
-          <option value="sweet16">Sort by: Sweet 16 %</option>
-          <option value="seed">Sort by: Seed</option>
-          <option value="upset">Sort by: Upset Potential</option>
-        </select>
-      </div>
-      <div class="table-wrapper">
-        <table id="probTable">
-          <thead>
-            <tr>
-              <th>Seed</th>
-              <th>Team</th>
-              <th>Region</th>
-              <th>Rating</th>
-              <th>R64</th>
-              <th>R32</th>
-              <th>S16</th>
-              <th>E8</th>
-              <th>F4</th>
-              <th>Finals</th>
-              <th>Champ</th>
-            </tr>
-          </thead>
-          <tbody id="probTableBody"></tbody>
-        </table>
-      </div>
-    </section>
+    <!-- ===== METHODOLOGY VIEW ===== -->
+    <div id="methodView" class="hidden">
+      <section class="methodology-section">
+        <h2 class="section-title">11-Factor Simulation Model</h2>
+        <p class="method-intro">Each game simulates all 11 factors with stochastic variance, then generates a narrative explaining the outcome. The model is calibrated against 40 years of historical upset rates and blended with live Vegas market data.</p>
+        <div class="methodology-grid">
+          <div class="method-card">
+            <div class="method-num">1</div>
+            <h3>Efficiency Matchup</h3>
+            <p>Each team's offense is evaluated against the specific opponent's defense using KenPom adjusted efficiency data. Margins are compressed 45% for tournament regression (single-elimination, neutral courts).</p>
+          </div>
+          <div class="method-card">
+            <div class="method-num">2</div>
+            <h3>Tempo Mismatch</h3>
+            <p>Teams forced out of their preferred pace see higher variance. UMBC sped Virginia up; FDU slowed Purdue down. Low-tempo games are inherently more random — fewer possessions = higher variance per possession.</p>
+          </div>
+          <div class="method-card">
+            <div class="method-num">3</div>
+            <h3>3-Point Variance</h3>
+            <p>The great equalizer. Game-to-game 3PT% has ~9% standard deviation. Each game simulates actual shooting variance. High 3PT-rate teams (Alabama: 48%) are explosive but volatile.</p>
+          </div>
+          <div class="method-card">
+            <div class="method-num">4</div>
+            <h3>Free Throw Clutch</h3>
+            <p>Champions shoot 71.9% FT vs. 70.1% field average. The model simulates actual FT attempts per game — crucial in close contests that tournament games tend to be.</p>
+          </div>
+          <div class="method-card">
+            <div class="method-num">5</div>
+            <h3>Experience & Composure</h3>
+            <p>Veteran rosters handle tournament pressure better. First-time tournament programs get a "bright lights" penalty. Both roster age and program tournament history factor in.</p>
+          </div>
+          <div class="method-card">
+            <div class="method-num">6</div>
+            <h3>Momentum</h3>
+            <p>Teams entering the tournament on a hot streak carry that energy forward. Conversely, teams limping in with losses face a confidence deficit under single-elimination pressure.</p>
+          </div>
+          <div class="method-card">
+            <div class="method-num">7</div>
+            <h3>Depth & Fatigue</h3>
+            <p>Deep benches matter more each round as games come every 2 days. Gonzaga's 42% bench minutes vs. Texas Tech's 19% becomes a massive factor by the Elite 8.</p>
+          </div>
+          <div class="method-card new-factor">
+            <div class="method-num">8</div>
+            <h3>Coaching Pedigree</h3>
+            <p>Elite tournament coaches (Izzo, Pitino, Hurley, Self) compress variance through superior preparation and in-game adjustments. Each coach rated 0-5 based on career tournament record, Final Fours, and championships. Impact scales up in later rounds.</p>
+          </div>
+          <div class="method-card new-factor">
+            <div class="method-num">9</div>
+            <h3>Injury / Availability</h3>
+            <p>Missing key players directly reduces team effectiveness. Alabama's Holloway suspension (16.8 PPG), UNC's Wilson OUT (19.8 PPG), and Gonzaga's Huff OUT (17.8 PPG) are reflected in real-time impact ratings.</p>
+          </div>
+          <div class="method-card new-factor">
+            <div class="method-num">10</div>
+            <h3>Conference Strength</h3>
+            <p>Big 12 and Big East have produced 4 of the last 5 champions. Teams from power conferences get a premium; weak conference teams face a discount. Based on NET rankings and recent championship production.</p>
+          </div>
+          <div class="method-card new-factor">
+            <div class="method-num">11</div>
+            <h3>Vegas Market Calibration</h3>
+            <p>A 15% blend toward DraftKings/BetMGM market lines anchors the model to collective market wisdom — millions of dollars of information from sharp bettors, computer models, and public sentiment.</p>
+          </div>
+        </div>
 
-    <!-- Methodology -->
-    <section class="methodology-section">
-      <h2 class="section-title">7-Factor Simulation Model</h2>
-      <div class="methodology-grid">
-        <div class="method-card">
-          <h3>1. Efficiency Matchup</h3>
-          <p>Not just "who is better" — each team's offense is evaluated against the specific opponent's defense. A 130 AdjOE vs. a 90 AdjDE plays very differently than vs. a 100 AdjDE. Uses KenPom adjusted efficiency data.</p>
+        <div class="method-sources">
+          <h3>Data Sources</h3>
+          <p>KenPom adjusted efficiency · ESPN BPI · DraftKings/BetMGM/FanDuel odds · CBS Sports · RotoWire injuries · Action Network sharp money · VSiN betting reports · Historical NCAA tournament data 1985-2025</p>
         </div>
-        <div class="method-card">
-          <h3>2. Tempo Mismatch</h3>
-          <p>Harvard Sports Analysis found tempo manipulation drives upsets. UMBC sped Virginia up; FDU slowed Purdue down. When teams are forced out of their preferred pace, variance spikes. Low-tempo games are inherently more random.</p>
-        </div>
-        <div class="method-card">
-          <h3>3. Three-Point Variance</h3>
-          <p>The great equalizer. Game-to-game 3PT% has ~8.5% standard deviation. A 35% shooter can go 2/16 or 8/16 any night. Teams with high 3PT rates (Alabama: 48%) are explosive but volatile. Each game simulates actual shooting variance.</p>
-        </div>
-        <div class="method-card">
-          <h3>4. Free Throw Clutch</h3>
-          <p>Champions shoot 71.9% FT vs. 70.1% field average. In close tournament games, FT shooting decides outcomes. The model simulates actual FT attempts and makes per game, with higher impact in tight contests.</p>
-        </div>
-        <div class="method-card">
-          <h3>5. Experience Factor</h3>
-          <p>Veteran rosters handle tournament pressure better. First-time tournament programs get a "bright lights" penalty. Roster continuity and program tournament history both factor into composure under pressure.</p>
-        </div>
-        <div class="method-card">
-          <h3>6. Consistency / Volatility</h3>
-          <p>Rock-solid teams (Michigan: 0.90) rarely get upset but rarely upset others. Volatile teams (Alabama: 0.55) can beat anyone or lose to anyone. Inconsistency increases variance in both directions.</p>
-        </div>
-        <div class="method-card">
-          <h3>7. Depth & Fatigue</h3>
-          <p>Deep benches matter more each round as games come every 2 days. Thin benches fade late. Gonzaga's 42% bench minutes vs. Texas Tech's 19% becomes a massive factor by the Elite 8.</p>
-        </div>
-      </div>
-    </section>
+      </section>
+    </div>
   </main>
+
+  <!-- Detail Panel Overlay -->
+  <div id="detailOverlay" class="detail-overlay hidden"></div>
+  <div id="detailPanel" class="detail-panel hidden"></div>
 
   <footer>
     <a href="https://www.perplexity.ai/computer" target="_blank" rel="noopener noreferrer">
