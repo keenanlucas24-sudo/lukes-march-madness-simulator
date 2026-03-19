@@ -30,7 +30,7 @@
       <div class="logo-area">
         <div class="logo-text">
           <span class="logo-title">Luke's March Madness Simulator</span>
-          <span class="logo-sub">11-Factor Model / 2026 Bracket</span>
+          <span class="logo-sub">11-Factor Model / 50K Monte Carlo / 2026 Bracket</span>
         </div>
       </div>
       <div class="header-controls">
@@ -54,6 +54,12 @@
 
     <!-- BRACKET VIEW -->
     <div id="bracketView">
+      <div id="progressArea" class="progress-area hidden">
+        <div class="progress-bar">
+          <div id="progressFill" class="progress-fill"></div>
+        </div>
+        <p id="progressText" class="progress-text">Running simulations...</p>
+      </div>
       <section id="championBanner" class="champion-banner hidden">
         <div class="champion-info">
           <div class="champion-label">Predicted Champion</div>
@@ -77,15 +83,8 @@
 
     <!-- PROBABILITIES VIEW -->
     <div id="probView" class="hidden">
-      <div id="progressArea" class="progress-area hidden">
-        <div class="progress-bar">
-          <div id="progressFill" class="progress-fill"></div>
-        </div>
-        <p id="progressText" class="progress-text">Running simulations...</p>
-      </div>
-
       <section id="tableSection" class="table-section hidden">
-        <h2 class="section-title">Aggregate Probability Breakdown <span class="section-subtitle">(10,000 simulations)</span></h2>
+        <h2 class="section-title">Aggregate Probability Breakdown <span class="section-subtitle">(50,000 simulations)</span></h2>
         <div class="table-controls">
           <input type="text" id="teamSearch" placeholder="Search teams..." class="search-input">
           <select id="tableSort" class="sort-select">

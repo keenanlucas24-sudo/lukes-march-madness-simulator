@@ -1,11 +1,13 @@
 /**
- * Application Controller v4.0
+ * Application Controller v5.0
  * 
- * ROUND-BY-ROUND BRACKET REVEAL:
- * - Deterministic bracket computed up front, revealed one round at a time
- * - "Advance" button progresses through: R64 → R32 → S16 → E8 → F4 → Championship
- * - Champion banner only shown after Championship is revealed
- * - Probabilities tab still uses Monte Carlo (10K sims) as statistical reference
+ * CALIBRATED BRACKET (50K Monte Carlo):
+ * - On load/generate: runs 50K Monte Carlo sims with progress indicator
+ * - Builds a single calibrated bracket using MC-derived probabilities
+ * - Historical upset rate calibration (1985-2025 data)
+ * - Win probability displayed on every game card (e.g. "62% vs 38%")
+ * - Round-by-round reveal with "Advance" button
+ * - Probabilities tab uses the same 50K sim data (no separate run needed)
  */
 
 (function () {
@@ -36,13 +38,15 @@
   const ROUND_LABELS = ['Round of 64', 'Round of 32', 'Sweet 16', 'Elite 8', 'Final Four', 'Championship'];
   const ROUND_SHORT  = ['R64', 'R32', 'Sweet 16', 'Elite 8', 'Final Four', 'Title'];
   const ALL_REGIONS = ['east', 'west', 'midwest', 'south'];
+  const NUM_SIMS = 50000;
 
   // ===== State =====
-  let currentBracket = null;     // Full deterministic bracket (computed up front)
-  let revealedRound = -1;        // -1 = not started, 0 = R64 shown, ... 5 = Championship shown
-  let aggregateResults = null;   // Monte Carlo aggregate
+  let currentBracket = null;
+  let revealedRound = -1;
+  let aggregateResults = null;
   let activeView = 'bracket';
   let detailGame = null;
+  let isSimulating = false;
 
   // ===== DOM =====
   const simBtn = document.getElementById('simBtn');
@@ -78,41 +82,98 @@
       probView.classList.toggle('hidden', activeView !== 'probabilities');
       methodView.classList.toggle('hidden', activeView !== 'methodology');
 
-      if (activeView === 'probabilities' && !aggregateResults) {
-        runAggregate();
+      if (activeView === 'probabilities' && aggregateResults) {
+        renderTable();
+        document.getElementById('tableSection').classList.remove('hidden');
+      } else if (activeView === 'probabilities' && !aggregateResults) {
+        // If somehow no results yet, show a message
+        document.getElementById('tableSection').classList.add('hidden');
       }
     });
   });
 
   // ===== Generate Bracket Button =====
   simBtn.addEventListener('click', () => {
-    // Compute full bracket deterministically
-    currentBracket = engine.analyzeBracket();
-    revealedRound = -1;
-
-    // Hide champion banner
-    championBanner.classList.add('hidden');
-
-    // Show bracket area
-    bracketArea.classList.remove('hidden');
-
-    // Reveal R64
-    advanceRound();
-
-    simBtn.classList.add('pulse');
-    setTimeout(() => simBtn.classList.remove('pulse'), 300);
+    if (isSimulating) return;
+    runCalibratedBracket();
   });
+
+  async function runCalibratedBracket() {
+    isSimulating = true;
+    simBtn.disabled = true;
+    simBtn.innerHTML = `
+      <svg class="spin-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>
+      Running...
+    `;
+
+    // Show progress
+    progressArea.classList.remove('hidden');
+    progressFill.style.width = '0%';
+    progressText.textContent = `Initializing 50,000 simulations...`;
+    championBanner.classList.add('hidden');
+    bracketArea.classList.add('hidden');
+    advanceBtn.classList.add('hidden');
+    roundIndicator.textContent = '';
+
+    // Switch to bracket view
+    viewTabs.forEach(t => t.classList.remove('active'));
+    document.querySelector('[data-view="bracket"]').classList.add('active');
+    activeView = 'bracket';
+    bracketView.classList.remove('hidden');
+    probView.classList.add('hidden');
+    methodView.classList.add('hidden');
+
+    try {
+      currentBracket = await engine.generateCalibratedBracket(NUM_SIMS, (progress, phase) => {
+        const pct = Math.round(progress * 100);
+        progressFill.style.width = pct + '%';
+        const done = Math.round(progress * NUM_SIMS);
+        if (phase === 'building') {
+          progressText.textContent = `Building calibrated bracket...`;
+        } else {
+          progressText.textContent = `Simulating ${done.toLocaleString()} / ${NUM_SIMS.toLocaleString()}...`;
+        }
+      });
+
+      // Store aggregate results for probability tab
+      aggregateResults = currentBracket.aggregateResults;
+
+      progressText.textContent = `50,000 simulations complete — bracket calibrated`;
+
+      setTimeout(() => {
+        progressArea.classList.add('hidden');
+        revealedRound = -1;
+        bracketArea.classList.remove('hidden');
+        advanceRound();
+
+        simBtn.disabled = false;
+        simBtn.innerHTML = `
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>
+          Regenerate Bracket
+        `;
+        isSimulating = false;
+      }, 600);
+    } catch (err) {
+      progressText.textContent = 'Error: ' + err.message;
+      console.error(err);
+      simBtn.disabled = false;
+      simBtn.innerHTML = `
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>
+        Generate Bracket
+      `;
+      isSimulating = false;
+    }
+  }
 
   // ===== Advance Round =====
   function advanceRound() {
     if (!currentBracket) return;
-    if (revealedRound >= 5) return; // already fully revealed
+    if (revealedRound >= 5) return;
 
     revealedRound++;
     renderBracket();
     updateRoundControls();
 
-    // Scroll bracket area into view
     bracketArea.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
@@ -129,11 +190,9 @@
       return;
     }
 
-    // Show current round label
     roundIndicator.textContent = ROUND_LABELS[revealedRound];
 
     if (revealedRound >= 5) {
-      // All rounds revealed — show champion
       advanceBtn.classList.add('hidden');
       renderChampionBanner();
       championBanner.classList.remove('hidden');
@@ -167,7 +226,6 @@
     championName.textContent = champ.name;
     championDetails.innerHTML = `<span class="champ-seed">#${champ.seed} seed</span> · <span class="champ-region">${REGIONS[getTeamRegion(champ.name)].name} Region</span> · <span class="champ-record">${champ.record}</span>`;
 
-    // Build champion path
     const path = getChampionPath(champ.name);
     championPath.innerHTML = path.map((g, i) => {
       const roundName = ROUND_SHORT[i];
@@ -175,7 +233,7 @@
         <span class="path-round">${roundName}</span>
         <span class="path-opponent">vs ${g.loser} <span class="path-score">${g.score}</span></span>
       </span>`;
-    }).join('<span class="path-arrow">→</span>');
+    }).join('<span class="path-arrow">\u2192</span>');
 
     // Count upsets
     let upsets = 0;
@@ -187,7 +245,14 @@
     [currentBracket.finalFour.semi1, currentBracket.finalFour.semi2, currentBracket.finalFour.championship].forEach(g => {
       if (g.isUpset) upsets++;
     });
-    upsetCounter.textContent = `${upsets} upset${upsets !== 1 ? 's' : ''} predicted`;
+
+    // Count R64 upsets specifically
+    let r64Upsets = 0;
+    ALL_REGIONS.forEach(rk => {
+      currentBracket.regions[rk].rounds[0].forEach(game => { if (game.isUpset) r64Upsets++; });
+    });
+
+    upsetCounter.textContent = `${upsets} total upsets (${r64Upsets} in Round of 64) · Based on ${NUM_SIMS.toLocaleString()} simulations`;
   }
 
   function getTeamRegion(name) {
@@ -241,9 +306,7 @@
 
     let html = '';
 
-    // Regional rounds (0-3)
     if (revealedRound <= 3) {
-      // Show all games up to and including the current revealed round, across all regions
       html += '<div class="bracket-rounds">';
 
       for (let r = 0; r <= Math.min(revealedRound, 3); r++) {
@@ -252,7 +315,6 @@
         html += `<div class="round-header"><h3 class="round-title">${ROUND_LABELS[r]}</h3>`;
         html += `<span class="round-game-count">${r <= 3 ? ALL_REGIONS.reduce((c, rk) => c + currentBracket.regions[rk].rounds[r].length, 0) : ''} games</span></div>`;
 
-        // Show games grouped by region
         html += '<div class="round-regions">';
         ALL_REGIONS.forEach(rk => {
           const regionRound = currentBracket.regions[rk].rounds[r];
@@ -271,13 +333,9 @@
       html += '</div>';
 
     } else {
-      // Final Four + Championship (rounds 4-5)
       html += '<div class="bracket-rounds">';
-
-      // Show collapsed summary of regional rounds
       html += renderRegionalSummary();
 
-      // Final Four (round 4)
       if (revealedRound >= 4) {
         const ff = currentBracket.finalFour;
         const isCurrentFF = (revealedRound === 4);
@@ -289,7 +347,6 @@
         html += '</div></div></div>';
       }
 
-      // Championship (round 5)
       if (revealedRound >= 5) {
         const ff = currentBracket.finalFour;
         html += `<div class="bracket-round-section current-round" id="round-5">`;
@@ -321,7 +378,6 @@
       });
     });
 
-    // Scroll to the current round section
     const currentSection = document.getElementById(`round-${revealedRound}`);
     if (currentSection) {
       setTimeout(() => {
@@ -348,8 +404,25 @@
 
   function renderGameCard(game, region, round, gameIdx, isNew, subtitle) {
     const seedColor = getSeedColor(game.winner.seed);
-    const winProb = game.winProb ? `${(game.winProb * 100).toFixed(0)}%` : '';
-    const marginLabel = game.margin ? game.margin.toFixed(1) : '';
+    
+    // Win probability — always show winner's prob on left, loser's on right
+    // This aligns with the team rows (winner on top, loser on bottom)
+    const winnerPct = game.winProb ? Math.round(game.winProb * 100) : null;
+    const loserPct = game.winProb ? Math.round((1 - game.winProb) * 100) : null;
+
+    let probBarHtml = '';
+    if (winnerPct != null) {
+      probBarHtml = `<div class="prob-bar-container">
+        <div class="prob-bar-labels">
+          <span class="prob-label winner-label">${winnerPct}%</span>
+          <span class="prob-label">${loserPct}%</span>
+        </div>
+        <div class="prob-bar-track">
+          <div class="prob-bar-a bar-winner" style="width: ${winnerPct}%"></div>
+          <div class="prob-bar-b bar-loser" style="width: ${loserPct}%"></div>
+        </div>
+      </div>`;
+    }
 
     return `<div class="game-card ${game.isUpset ? 'upset-game' : ''} ${isNew ? 'new-reveal' : ''}" data-round="${round}" data-game="${gameIdx}" data-region="${region}">
       ${subtitle ? `<div class="game-subtitle">${subtitle}</div>` : ''}
@@ -366,14 +439,12 @@
           <span class="g-score">${game.loserScore}</span>
         </div>
       </div>
-      <div class="game-meta">
-        ${winProb ? `<span class="game-confidence">Model confidence: ${winProb}</span>` : ''}
-      </div>
+      ${probBarHtml}
       <div class="game-narrative">${game.narrative.text}</div>
       <div class="game-factors-mini">
         ${game.narrative.topFactors.slice(0, 2).map(f => `<span class="factor-tag ${f.value > 0 ? 'positive' : 'negative'}">${f.label}</span>`).join('')}
       </div>
-      <button class="detail-btn" aria-label="View matchup details">Details →</button>
+      <button class="detail-btn" aria-label="View matchup details">Details \u2192</button>
     </div>`;
   }
 
@@ -400,6 +471,10 @@
     const l = game.loser;
     const f = game.factors;
 
+    // Win probability display
+    const winProbPct = game.winProb ? (game.winProb * 100).toFixed(1) : '';
+    const loseProbPct = game.winProb ? ((1 - game.winProb) * 100).toFixed(1) : '';
+
     const factorRows = [
       { label: 'Efficiency Matchup', val: f.efficiency, desc: `${w.name}: ${w.adjOE.toFixed(1)} AdjOE / ${w.adjDE.toFixed(1)} AdjDE vs ${l.name}: ${l.adjOE.toFixed(1)} / ${l.adjDE.toFixed(1)}`, num: '1' },
       { label: 'Tempo Mismatch', val: f.tempo, desc: `Game tempo: ${((w.tempo + l.tempo) / 2).toFixed(1)} | ${w.name}: ${w.tempo} · ${l.name}: ${l.tempo}`, num: '2' },
@@ -416,7 +491,7 @@
 
     let html = `
       <div class="detail-header">
-        <button class="detail-close" aria-label="Close">✕</button>
+        <button class="detail-close" aria-label="Close">\u2715</button>
         <div class="detail-matchup">
           <div class="detail-team winner">
             <span class="detail-seed" style="background: ${getSeedColor(w.seed)}">${w.seed}</span>
@@ -436,7 +511,24 @@
             <span class="detail-score">${game.loserScore}</span>
           </div>
         </div>
-        ${game.winProb ? `<div class="detail-confidence">Model confidence: ${(game.winProb * 100).toFixed(1)}%</div>` : ''}
+        ${game.winProb ? `
+        <div class="detail-prob-section">
+          <div class="detail-prob-header">Win Probability (${NUM_SIMS.toLocaleString()} simulations)</div>
+          <div class="detail-prob-bar">
+            <div class="detail-prob-side winner-side">
+              <span class="detail-prob-name">${w.name}</span>
+              <span class="detail-prob-pct">${winProbPct}%</span>
+            </div>
+            <div class="detail-prob-track">
+              <div class="detail-prob-fill winner-fill" style="width: ${winProbPct}%"></div>
+            </div>
+            <div class="detail-prob-side loser-side">
+              <span class="detail-prob-name">${l.name}</span>
+              <span class="detail-prob-pct">${loseProbPct}%</span>
+            </div>
+          </div>
+        </div>
+        ` : ''}
         ${game.isUpset ? '<div class="detail-upset-tag">UPSET</div>' : ''}
       </div>
 
@@ -536,33 +628,6 @@
     </div>`;
   }
 
-  // ===== Aggregate Monte Carlo =====
-  async function runAggregate() {
-    const numSims = 10000;
-    progressArea.classList.remove('hidden');
-    progressFill.style.width = '0%';
-    progressText.textContent = `Running 0 / ${numSims.toLocaleString()} simulations...`;
-
-    try {
-      aggregateResults = await engine.simulate(numSims, (progress) => {
-        const pct = Math.round(progress * 100);
-        progressFill.style.width = pct + '%';
-        const done = Math.round(progress * numSims);
-        progressText.textContent = `Running ${done.toLocaleString()} / ${numSims.toLocaleString()} simulations...`;
-      });
-
-      progressText.textContent = `Completed ${numSims.toLocaleString()} simulations`;
-      setTimeout(() => {
-        progressArea.classList.add('hidden');
-        renderTable();
-        document.getElementById('tableSection').classList.remove('hidden');
-      }, 300);
-    } catch (err) {
-      progressText.textContent = 'Error: ' + err.message;
-      console.error(err);
-    }
-  }
-
   // ===== Render Probability Table =====
   function renderTable() {
     if (!aggregateResults) return;
@@ -631,7 +696,7 @@
 
   // ===== Auto-generate on load =====
   setTimeout(() => {
-    simBtn.click();
+    runCalibratedBracket();
   }, 300);
 
 })();

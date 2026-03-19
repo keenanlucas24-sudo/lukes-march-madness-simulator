@@ -414,16 +414,125 @@ main {
 .btn-advance:hover { opacity: 0.85; transform: translateY(-1px); }
 .btn-advance:active { transform: scale(0.98); }
 
-/* ===== Game Card Confidence ===== */
-.game-meta {
-  margin-bottom: var(--space-1);
+/* ===== Spin Animation ===== */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
-.game-confidence {
+.spin-icon {
+  animation: spin 1s linear infinite;
+}
+
+/* ===== Game Card Probability Bar ===== */
+.prob-bar-container {
+  margin-bottom: var(--space-2);
+}
+
+.prob-bar-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 3px;
+}
+
+.prob-label {
   font-size: 10px;
   font-family: var(--font-mono);
-  color: var(--color-text-faint);
   font-weight: 500;
+  color: var(--color-text-faint);
 }
+
+.prob-label.winner-label {
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.prob-bar-track {
+  display: flex;
+  height: 4px;
+  border-radius: 2px;
+  overflow: hidden;
+  gap: 1px;
+}
+
+.prob-bar-a, .prob-bar-b {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 300ms ease;
+}
+
+.prob-bar-a.bar-winner { background: var(--color-text); }
+.prob-bar-a.bar-loser { background: var(--color-surface-3); }
+.prob-bar-b.bar-winner { background: var(--color-text); }
+.prob-bar-b.bar-loser { background: var(--color-surface-3); }
+
+/* ===== Detail Panel Probability Section ===== */
+.detail-prob-section {
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.detail-prob-header {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--color-text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: var(--space-2);
+}
+
+.detail-prob-bar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.detail-prob-side {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.detail-prob-name {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.detail-prob-side.winner-side .detail-prob-name {
+  color: var(--color-text);
+}
+
+.detail-prob-pct {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.detail-prob-side.winner-side .detail-prob-pct {
+  color: var(--color-text);
+}
+
+.detail-prob-side.loser-side .detail-prob-pct {
+  color: var(--color-text-faint);
+}
+
+.detail-prob-track {
+  height: 6px;
+  background: var(--color-surface-3);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.detail-prob-fill.winner-fill {
+  height: 100%;
+  background: var(--color-text);
+  border-radius: 3px;
+  transition: width 300ms ease;
+}
+
 .game-subtitle {
   font-size: 10px;
   font-weight: 600;
@@ -431,14 +540,6 @@ main {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   margin-bottom: var(--space-2);
-}
-
-.detail-confidence {
-  font-size: var(--text-xs);
-  font-family: var(--font-mono);
-  font-weight: 600;
-  color: var(--color-text-muted);
-  margin-top: var(--space-2);
 }
 
 /* Card reveal animation */
